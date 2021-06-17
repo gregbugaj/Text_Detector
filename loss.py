@@ -34,7 +34,9 @@ class FocalLoss(nn.Module):
         pt = p*t + (1-p)*(1-t)         # pt = p if t > 0 else 1-p
         w = alpha*t + (1-alpha)*(1-t)  # w = alpha if t > 0 else 1-alpha
         w = w * (1-pt).pow(gamma)
-        return F.binary_cross_entropy_with_logits(x, t, w, size_average=False)
+
+        los = F.binary_cross_entropy_with_logits(x, t, w,  reduction='sum')
+        return los
 
     def focal_loss_alt(self, x, y):
         '''Focal loss alternative.
@@ -56,7 +58,14 @@ class FocalLoss(nn.Module):
 
         w = alpha*t + (1-alpha)*(1-t)
         loss = -w*pt.log() / 2
-        return loss.sum()
+        val = loss.sum()
+        # print('############## : %s' % (val))
+        # print(t)
+        # print(x)
+        # print(xt)
+        # print(pt)
+        # print(w)
+        return val 
 
     def forward(self, loc_preds, loc_targets, cls_preds, cls_targets):
         '''Compute loss between (loc_preds, loc_targets) and (cls_preds, cls_targets).
@@ -82,7 +91,8 @@ class FocalLoss(nn.Module):
         masked_loc_preds = loc_preds[mask].view(-1,8)      # [#pos,8]
         masked_loc_targets = loc_targets[mask].view(-1,8)  # [#pos,8]
         
-        loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, size_average=False)
+        # loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, size_average=False)
+        loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, reduction='sum')
         loc_loss *= 0.5  # TextBoxes++ has 8-loc offset
         ################################################################
         # cls_loss = FocalLoss(loc_preds, loc_targets)
@@ -91,8 +101,8 @@ class FocalLoss(nn.Module):
         mask = pos_neg.unsqueeze(2).expand_as(cls_preds)
         
         masked_cls_preds = cls_preds[mask].view(-1,self.num_classes)
-        
         cls_loss = self.focal_loss_alt(masked_cls_preds, cls_targets[pos_neg])
+        # cls_loss = self.focal_loss(masked_cls_preds, cls_targets[pos_neg])
 
         return loc_loss/num_pos, cls_loss/num_pos
 
@@ -136,7 +146,8 @@ class OHEM_loss(nn.Module):
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_preds)
         masked_loc_preds = loc_preds[pos_idx].view(-1, 8)
         masked_loc_targets = loc_targets[pos_idx].view(-1, 8)
-        loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, size_average=False)
+        # loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, size_average=False)
+        loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets,  reduction='sum')
 
         # Compute max conf across batch for hard negative mining
         num = loc_preds.size(0)
@@ -161,7 +172,7 @@ class OHEM_loss(nn.Module):
         
         conf_p = cls_preds[(pos_idx+neg_idx).gt(0)].view(-1, self.num_classes)
         targets_weighted = cls_targets[(pos+neg).gt(0)]
-        cls_loss = F.cross_entropy(conf_p, targets_weighted, size_average=False)
+        cls_loss = F.cross_entropy(conf_p, targets_weighted,  reduction='sum')
 
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
         N = num_pos.float().sum()

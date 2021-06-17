@@ -33,7 +33,7 @@ def adjust_learning_rate(cur_lr, optimizer, gamma, step):
     return lr
 
 parser = argparse.ArgumentParser(description='PyTorch RetinaNet Training')
-parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
 parser.add_argument('--input_size', default=768, type=int, help='Input size for training')
 parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=8, type=int, help='Number of workers used in dataloading')
@@ -62,7 +62,7 @@ if not os.path.exists(args.logdir):
 
 # Data
 print('==> Preparing data..')
-trainset = ListDataset(root='/root/DB/', dataset=args.dataset, train=True, 
+trainset = ListDataset(root='/home/greg/dev/datasets/ICDAR2015-Text/', dataset=args.dataset, train=True, 
                        transform=Augmentation_traininig, input_size=args.input_size, multi_scale=args.multi_scale)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, 
                                           shuffle=True, num_workers=args.num_workers, collate_fn=trainset.collate_fn)
@@ -120,8 +120,8 @@ net.cuda()
 net.train()
 net.module.freeze_bn() # you must freeze batchnorm
 
-optimizer = optim.SGD(net.parameters(), lr=cur_lr, momentum=0.9, weight_decay=1e-4)
-#optimizer = optim.Adam(net.parameters(), lr=cur_lr)
+# optimizer = optim.SGD(net.parameters(), lr=cur_lr, momentum=0.9, weight_decay=1e-4)
+optimizer = optim.Adam(net.parameters(), lr=cur_lr)
 
 encoder = DataEncoder()
 
@@ -129,6 +129,12 @@ encoder = DataEncoder()
 writer = SummaryWriter(log_dir=args.logdir)
 
 t0 = time.time()
+
+def imwrite(path, img):
+    try:
+        cv2.imwrite(path, img)
+    except Exception as ident:
+        print(ident)
 
 for epoch in range(start_epoch, 10000):
     if iteration > args.max_iter:
@@ -141,17 +147,39 @@ for epoch in range(start_epoch, 10000):
 
         optimizer.zero_grad()
         loc_preds, cls_preds = net(inputs)
-
+        # print('---------------------------------------')
         loc_loss, cls_loss = criterion(loc_preds, loc_targets, cls_preds, cls_targets)
         loss = loc_loss + cls_loss
+
+        # print('*** loc_loss : %s'  %(loc_loss))
+        # print('*** LOSS : %s'  %(cls_loss))
         loss.backward()
         optimizer.step()
+
+        current_loss = loss.sum().item()
+        if current_loss < best_loss :
+            print('Best loss = %s : %s' % (iteration, current_loss))
+            best_loss = current_loss
+            state = {
+                'net': net.module.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                'iteration' : iteration,
+                'epoch': epoch,
+                'lr' : cur_lr,
+                'step_index' : step_index
+            }            
+            model_file = args.save_folder + 'best_' + repr(best_loss) + '.pth'
+            torch.save(state, model_file)            
+            
+            model_file = args.save_folder + 'best_segmenter.pth'
+            torch.save(state, model_file)
 
         if iteration % 20 == 0:
             t1 = time.time()
             print('iter ' + repr(iteration) + ' (epoch ' + repr(epoch) + ') || loss: %.4f || l loc_loss: %.4f || l cls_loss: %.4f (Time : %.1f)'\
-                 % (loss.sum().item(), loc_loss.sum().item(), cls_loss.sum().item(), (t1 - t0)))
+                 % (current_loss, loc_loss.sum().item(), cls_loss.sum().item(), (t1 - t0)))
             t0 = time.time()
+            
             writer.add_scalar('loc_loss', loc_loss.sum().item(), iteration)
             writer.add_scalar('cls_loss', cls_loss.sum().item(), iteration)
             writer.add_scalar('loss', loss.sum().item(), iteration)
@@ -162,16 +190,25 @@ for epoch in range(start_epoch, 10000):
             infer_img += mean
             infer_img *= 255.
             infer_img = np.clip(infer_img, 0, 255)
-            infer_img = infer_img.astype(np.uint8)
+            infer_img = infer_img.astype(np.uint8)#.copy() 
             h, w, _ = infer_img.shape
 
             boxes, labels, scores = encoder.decode(loc_preds[0], cls_preds[0], (w,h))
             boxes = boxes.reshape(-1, 4, 2).astype(np.int32)
-            
-            if boxes.shape[0] is not 0:
-                infer_img = cv2.polylines(infer_img, boxes, True, (0,255,0), 4)
 
-            writer.add_image('image', infer_img, iteration)
+            imwrite('/tmp/debug-icdar/infer_img%s.png' %(iteration), infer_img)                            
+            try:
+                print(infer_img.shape)
+                if boxes.shape[0] != 0:
+                    print(boxes)
+                    # required to prevent TypeError: Layout of the output array incompatible with cv::Mat
+                    image = np.ascontiguousarray(infer_img, dtype=np.uint8)
+                    image = cv2.polylines(image, boxes, True, (0,255,0), 1)
+                    imwrite('/tmp/debug-icdar/eval_%s.png' %(iteration), image)                
+            except Exception as ex:
+                print(ex)                
+            
+            # writer.add_image('image', infer_img, iteration)
             writer.add_scalar('input_size', h, iteration)
             writer.add_scalar('learning_rate', cur_lr, iteration)
 

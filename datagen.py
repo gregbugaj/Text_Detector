@@ -170,6 +170,7 @@ class ListDataset(data.Dataset):
 
         for i in dataset_list:
             img_file = data_dir + "%s/%s.jpg" % (mode, i)
+            print(img_file)
             label_file = open(data_dir + "%s/gt_%s.txt" % (mode, i))
             label_file = label_file.readlines()
 
@@ -192,7 +193,7 @@ class ListDataset(data.Dataset):
                 _quad.append([_x0, _y0, _x1, _y1,_x2, _y2, _x3, _y3])
                 _classes.append(1)
 
-            if len(_quad) is 0:
+            if len(_quad) == 0:
                 self.num_samples -= 1
                 continue
             self.fnames.append(img_file)
@@ -235,7 +236,7 @@ class ListDataset(data.Dataset):
                 _quad.append([_x0, _y0, _x1, _y1,_x2, _y2, _x3, _y3])
                 _classes.append(1)
 
-            if len(_quad) is 0:
+            if len(_quad) == 0:
                 self.num_samples -= 1
                 continue
             self.fnames.append(img_file)
@@ -246,7 +247,7 @@ class ListDataset(data.Dataset):
         data_dir = os.path.join(self.root, 'ICDAR2013_FOCUSED/')
 
         dataset_list = os.listdir(data_dir + "train")
-        dataset_list = [l[:-4] for l in dataset_list if "jpg" in l]
+        dataset_list = [l[:-4] for l in dataset_list if "jpg" or "png" in l]
 
         dataset_size = len(dataset_list)
         mode = 'train' if self.train else 'test'
@@ -279,7 +280,7 @@ class ListDataset(data.Dataset):
                 _quad.append([_x0, _y0, _x1, _y1,_x2, _y2, _x3, _y3])
                 _classes.append(1)
 
-            if len(_quad) is 0:
+            if len(_quad) == 0:
                 self.num_samples -= 1
                 continue
             self.fnames.append(img_file)
@@ -291,7 +292,7 @@ def test():
 
     from augmentations import Augmentation_traininig
     
-    dataset = ListDataset(root='/root/DB/',
+    dataset = ListDataset(root='/home/greg/dev/datasets/ICDAR2015/',
                           dataset='ICDAR2015', train=True, transform=Augmentation_traininig, input_size=600, multi_scale=True)
 
     import cv2
@@ -326,14 +327,14 @@ def test2():
 
     from augmentations import Augmentation_traininig
     
-    dataset = ListDataset(root='/root/DB/',
+    dataset = ListDataset(root='/home/greg/dev/datasets/ICDAR2015-Text/',
                           dataset='ICDAR2015', train=True, transform=Augmentation_traininig, input_size=600, multi_scale=True)
 
     import cv2
     import numpy as np
     from PIL import Image, ImageDraw
 
-    for i in range(10):
+    for i in range(30):
         data = dataset.__getitem__(i)
         
         random_choice = random.randint(0, len(dataset.MULTI_SCALES)-1)
@@ -352,11 +353,9 @@ def test2():
         boxes = boxes.data.numpy()
         boxes = boxes.reshape(-1, 4, 2).astype(np.int32)
 
-        img = cv2.polylines(img, boxes, True, (255,0,0), 4)
-        #cv2.imwrite('/home/beom/samba/%d.jpg' % i, img)
-        
+        img = cv2.polylines(img, boxes, True, (255,0,0), 1)
         img = Image.fromarray(img)
-        img.save('/home/beom/samba/%d.jpg' % i)
+        img.save('/tmp/debug-icdar/%d.jpg' % i)
     
     
-#test()
+test2()

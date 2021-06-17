@@ -13,6 +13,7 @@ from retinanet import RetinaNet
 
 
 print('Loading pretrained ResNet50 model..')
+# d = torch.load('./weights/se_resnet50-ce0d4300.pth')
 d = torch.load('./weights/se_resnet50-ce0d4300.pth')
 
 print('Loading into FPN50..')

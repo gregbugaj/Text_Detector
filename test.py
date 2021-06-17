@@ -55,7 +55,7 @@ for n, _img in enumerate(val_list):
     for box in boxes:
         draw.polygon(np.expand_dims(box,0), outline=(0,255,0))
     
-    img.save("/home/beom/samba/pytorch_result/" + _img)
+    img.save("/tmp/debug-icdar/_result/" + _img)
 
     if n==10:
         break

@@ -536,7 +536,7 @@ class Augmentation_traininig(object):
         self.augment = Compose([
             ConvertFromInts(),
             PhotometricDistort(),
-            Rotate(self.mean),
+            # Rotate(self.mean),
             RandomSampleCropPoly(),
             Resize(self.size), 
             Normalize(),
